@@ -1,0 +1,36 @@
+NCMAT v5
+#
+# Gamma phase of solid oxygen (gamma-O2)
+#
+# Crystal structure was converted from the cif file of the entry 0015160 in the AMCSD.
+# Additional reference:
+# Cox D E, Samuelsen E J, Ceckurts K H
+# Physical Review B7 (1973) 3102-3111
+# Neutron-Diffraction determination of the crystal structure and magnetic form
+# factor of gamma-oxygen
+#
+# The site occupancy of oxygen atom is taken into account by multiplying a factor
+# of 0.25 for the number density.
+#
+# Since the VDOS curve of the gamma-phase of solid oxygen is not reported in the
+# literature, a simplified Debye model is used instead. The Debye temperature
+# Delta_D = 104 K is retrieved from the Ref:
+# Yu.A. Freiman, H.J. Jodl,
+# Solid oxygen,
+# Physics Reports,
+# Volume 401, Issues 1–4,
+# 2004,
+#
+#NCRYSTALMATCFG[temp=1K]
+@CELL
+  cubic 6.78
+@SPACEGROUP
+  223
+@ATOMPOSITIONS
+  O   0.04360   0.04360   0.04360
+  O   0.03400   0.25160   0.41510
+@DYNINFO
+  element  O
+  fraction 1.
+  type     vdosdebye
+  debye_temp 104
