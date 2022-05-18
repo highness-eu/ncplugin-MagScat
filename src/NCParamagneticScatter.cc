@@ -5,29 +5,33 @@
 #include "NCrystal/internal/NCRandUtils.hh"
 
 //Components to calculate the magnetic scattering cross section
-double gfunc( double temperature, double D_const, bool down_scat )
+double gfunc( double temperature, double D_const, int mag_scat )
 {
   //g functions, which accounts for the spin
   //temperature : temperature of material K
   //D_const : zero-field splitting constant, eV
-  //down_scat : down-scattering option, boolean
+  //mag_scat : magnetic scattering option, int
+  //-1, 0, 1 represent respectively down, elastic and up scattering
+  //g0=g+
   double exp = NCrystal::exp_negarg_approx(-D_const / (NCrystal::constant_boltzmann * temperature));
   double g = 4. / 3. / (1 + 2 * exp);
-  if ( !down_scat ) g *= exp;
+  if ( mag_scat == 0 || mag_scat == 1 ) g *= exp;
   return g;
 }
 
 double ffunc( double incident_neutron_E, double hwhm, double D_const,
-              bool down_scat )
+              int mag_scat, double msd )
 {
   //f functions, integral of magnetic form factor
   //incident_neutron_E : incident neutron energy, eV
   //hwhm : half width at half maximum, float, Aa^-1
   //D_const : zero-field splitting constant, eV
-  //down_scat : down-scattering option, boolean
+  //mag_scat : magnetic scattering option, int
+  //-1, 0, 1 represent respectively down, elastic and up scattering
+  //msd: mean-squared displacement, Aa^2
   double A, B, f;
-  A = 2 * std::log(2) / (NCrystal::const_hhm * hwhm * hwhm); // eV^-1
-  if ( down_scat ) {
+  A = 2 * (msd + std::log(2) / (hwhm * hwhm)) / NCrystal::const_hhm; // eV^-1
+  if ( mag_scat == -1 ) {
     if (incident_neutron_E > D_const) {
       B = 2 * A * std::sqrt(incident_neutron_E * (incident_neutron_E - D_const));
       f = NCrystal::exp_negarg_approx(-A * (2 * incident_neutron_E - D_const));
@@ -35,9 +39,14 @@ double ffunc( double incident_neutron_E, double hwhm, double D_const,
     }
     else f = 0;
   }
-  else {
+  else if ( mag_scat == 1 ) {
     B = 2 * A * std::sqrt(incident_neutron_E * (incident_neutron_E + D_const));
     f = NCrystal::exp_negarg_approx(-A * (2 * incident_neutron_E + D_const));
+    f *= 0.5 * (NCrystal::exp_approx(B) - NCrystal::exp_negarg_approx(-B)) / B;
+  }
+  else {
+    B = 2 * A * incident_neutron_E;
+    f = NCrystal::exp_negarg_approx(-B);
     f *= 0.5 * (NCrystal::exp_approx(B) - NCrystal::exp_negarg_approx(-B)) / B;
   }
   return f;
@@ -79,29 +88,35 @@ NCP::ParamagneticScatter NCP::ParamagneticScatter::createFromInfo( const NC::Inf
   if ( ! NC::safe_str2dbl( data.at(0).at(0), sigma )
        || ! NC::safe_str2dbl( data.at(0).at(1), hwhm )
        || ! NC::safe_str2dbl( data.at(0).at(2), D_const )
-       || ! (sigma>0.0) || !(hwhm>0.0) || !(D_const>0.0) )
+       || ! (sigma>0.0) || ! (hwhm>0.0) || ! (D_const>0.0) )
     NCRYSTAL_THROW2( BadInput,"Invalid values specified in the @CUSTOM_"<<pluginNameUpperCase()
                      <<" sigma, hwhm, D_const (should be three positive floating point values)" );
     
-  if ( !(data.at(0).at(3)=="1" || data.at(0).at(3)=="0") )
+  int mag_scat;
+  if ( ! NC::safe_str2int( data.at(0).at(3), mag_scat )
+       || ! (mag_scat > -2) || ! (mag_scat < 2) )
     NCRYSTAL_THROW2( BadInput,"Invalid value specified in the @CUSTOM_"<<pluginNameUpperCase()
-                     <<" down_scat (must be 0 (for up-scattering) or 1 (for down-scattering)" );
-  bool down_scat = (data.at(0).at(3) == "1");
+                     <<" mag_scat (must be -1 (for down-scattering) or 1 (for up-scattering) or 0 (for elastic scattering)" );
   
   //Getting the temperature
   double temperature = info.getTemperature().get();
+    
+  //Getting the mean-squared displacement (MSD)
+  double msd = 0.;
+  if ( info.hasAtomMSD() ) msd = info.getAtomInfos().front().msd().value();
 
   //Parsing done! Create and return our model:
-  return ParamagneticScatter(sigma,hwhm,D_const,temperature,down_scat);
+  return ParamagneticScatter(sigma,hwhm,D_const,temperature,mag_scat,msd);
 }
 
 NCP::ParamagneticScatter::ParamagneticScatter( double sigma, double hwhm, double D_const,
-                                               double temperature, bool down_scat)
+                                               double temperature, int mag_scat, double msd)
   : m_sigma(sigma),
     m_hwhm(hwhm),
     m_D_const(D_const),
     m_temperature(temperature),
-    m_down_scat(down_scat)
+    m_mag_scat(mag_scat),
+    m_msd(msd)
 {
   //Important note to developers who are using the infrastructure in the
   //testcode/ subdirectory: If you change the number or types of the arguments
@@ -118,14 +133,14 @@ NCP::ParamagneticScatter::ParamagneticScatter( double sigma, double hwhm, double
 
 double NCP::ParamagneticScatter::calcCrossSection( double neutron_ekin ) const
 {
-  double g = gfunc(m_temperature, m_D_const, m_down_scat);
-  double f = ffunc(neutron_ekin, m_hwhm, m_D_const, m_down_scat);
+  double g = gfunc(m_temperature, m_D_const, m_mag_scat);
+  double f = ffunc(neutron_ekin, m_hwhm, m_D_const, m_mag_scat, m_msd);
   double xs_in_barn = m_sigma * g * f;
-  if ( m_down_scat ) {
+  if ( m_mag_scat == -1 ) {
     if ( neutron_ekin > m_D_const ) xs_in_barn *= std::sqrt(1 - m_D_const / neutron_ekin);
     else xs_in_barn = 0.;
   }
-  else xs_in_barn *= std::sqrt(1 + m_D_const / neutron_ekin);
+  else if ( m_mag_scat == 1 ) xs_in_barn *= std::sqrt(1 + m_D_const / neutron_ekin);
     
   return xs_in_barn;
 }
@@ -153,11 +168,12 @@ NCP::ParamagneticScatter::ScatEvent NCP::ParamagneticScatter::sampleScatteringEv
   //result.ekin_final = neutron_ekin;//Elastic
   result.mu = randIsotropicScatterMu(rng).dbl(); //Isotropic
     
-  if ( m_down_scat ) {
+  if ( m_mag_scat == -1 ) {
     if ( neutron_ekin > m_D_const ) result.ekin_final = neutron_ekin - m_D_const;
     else result.ekin_final = neutron_ekin;
   }
-  else result.ekin_final = neutron_ekin + m_D_const;
+  else if ( m_mag_scat == 1 ) result.ekin_final = neutron_ekin + m_D_const;
+  else result.ekin_final = neutron_ekin;
 
   return result;
 }
