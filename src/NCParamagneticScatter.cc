@@ -4,7 +4,7 @@
 #include "NCrystal/internal/NCString.hh"
 #include "NCrystal/internal/NCRandUtils.hh"
 
-//Components to calculate the magnetic scattering cross section
+//Components to calculate the magnetic scattering cross sections
 double gfunc( double temperature, double D_const, int mag_scat )
 {
   //g functions, which accounts for the spin
@@ -13,6 +13,7 @@ double gfunc( double temperature, double D_const, int mag_scat )
   //mag_scat : magnetic scattering option, int
   //-1, 0, 1 represent respectively down, elastic and up scattering
   //g0=g+
+  nc_assert( mag_scat==-1 || mag_scat==0 || mag_scat==1 );
   double exp = NCrystal::exp_negarg_approx(-D_const / (NCrystal::constant_boltzmann * temperature));
   double g = 4. / 3. / (1 + 2 * exp);
   if ( mag_scat == 0 || mag_scat == 1 ) g *= exp;
@@ -29,6 +30,7 @@ double ffunc( double incident_neutron_E, double hwhm, double D_const,
   //mag_scat : magnetic scattering option, int
   //-1, 0, 1 represent respectively down, elastic and up scattering
   //msd: mean-squared displacement, Aa^2
+  nc_assert( mag_scat==-1 || mag_scat==0 || mag_scat==1 );
   double A, B, f;
   A = 2 * (msd + std::log(2) / (hwhm * hwhm)) / NCrystal::const_hhm; // eV^-1
   if ( mag_scat == -1 ) {
@@ -50,6 +52,29 @@ double ffunc( double incident_neutron_E, double hwhm, double D_const,
     f *= 0.5 * (NCrystal::exp_approx(B) - NCrystal::exp_negarg_approx(-B)) / B;
   }
   return f;
+}
+
+double kgffunc( double temperature, double incident_neutron_E, double hwhm,
+                double D_const, int mag_scat, double msd )
+{
+  //inelastic and elastic magnetic cross sections
+  //temperature : temperature of material K
+  //incident_neutron_E : incident neutron energy, eV
+  //hwhm : half width at half maximum, float, Aa^-1
+  //D_const : zero-field splitting constant, eV
+  //mag_scat : magnetic scattering option, int
+  //-1, 0, 1 represent respectively down, elastic and up scattering
+  //msd: mean-squared displacement, Aa^2
+  double g = gfunc(temperature, D_const, mag_scat);
+  double f = ffunc(incident_neutron_E, hwhm, D_const, mag_scat, msd);
+  double kgf = g * f;
+  if ( mag_scat == -1 ) {
+    if ( incident_neutron_E > D_const ) kgf *= std::sqrt(1 - D_const / incident_neutron_E);
+    else kgf = 0.;
+  }
+  else if ( mag_scat == 1 ) kgf *= std::sqrt(1 + D_const / incident_neutron_E);
+      
+  return kgf;
 }
 
 bool NCP::ParamagneticScatter::isApplicable( const NC::Info& info )
@@ -75,13 +100,14 @@ NCP::ParamagneticScatter NCP::ParamagneticScatter::createFromInfo( const NC::Inf
   // eV, boolean, as is usual in NCrystal):
   //
   // @CUSTOM_<ourpluginname>
-  //    <sigmavalue> <hwhm value> <D_const value> <down-scattering option>
+  //    <sigmavalue> <hwhm value> <D_const value> <magnetic scattering option>
   //
 
-  //Verify we have exactly one line and four words:
-  if ( data.size() != 1 || data.at(0).size()!=4 )
+  //Verify we have exactly one line and three or four words:
+  if ( data.size() != 1 || ( data.at(0).size()!=3
+       && data.at(0).size()!=4 ) )
     NCRYSTAL_THROW2(BadInput,"Data in the @CUSTOM_"<<pluginNameUpperCase()
-                    <<" section should be four numbers on a single line");
+                    <<" section should be three or four numbers on a single line");
 
   //Parse and validate values:
   double sigma, hwhm, D_const;
@@ -93,8 +119,11 @@ NCP::ParamagneticScatter NCP::ParamagneticScatter::createFromInfo( const NC::Inf
                      <<" sigma, hwhm, D_const (should be three positive floating point values)" );
     
   int mag_scat;
-  if ( ! NC::safe_str2int( data.at(0).at(3), mag_scat )
-       || ! (mag_scat > -2) || ! (mag_scat < 2) )
+  // inelastic and elastic magnetic cross sections are both considered
+  if ( data.at(0).size()==3 ) mag_scat = 2;
+  // only one component is considered
+  else if ( ! NC::safe_str2int( data.at(0).at(3), mag_scat )
+            || ! (mag_scat > -2) || ! (mag_scat < 2) )
     NCRYSTAL_THROW2( BadInput,"Invalid value specified in the @CUSTOM_"<<pluginNameUpperCase()
                      <<" mag_scat (must be -1 (for down-scattering) or 1 (for up-scattering) or 0 (for elastic scattering)" );
   
@@ -133,14 +162,14 @@ NCP::ParamagneticScatter::ParamagneticScatter( double sigma, double hwhm, double
 
 double NCP::ParamagneticScatter::calcCrossSection( double neutron_ekin ) const
 {
-  double g = gfunc(m_temperature, m_D_const, m_mag_scat);
-  double f = ffunc(neutron_ekin, m_hwhm, m_D_const, m_mag_scat, m_msd);
-  double xs_in_barn = m_sigma * g * f;
-  if ( m_mag_scat == -1 ) {
-    if ( neutron_ekin > m_D_const ) xs_in_barn *= std::sqrt(1 - m_D_const / neutron_ekin);
-    else xs_in_barn = 0.;
+  double xs_in_barn;
+  if ( m_mag_scat==2 ) {
+    xs_in_barn  = kgffunc( m_temperature, neutron_ekin, m_hwhm, m_D_const, -1, m_msd );
+    xs_in_barn += kgffunc( m_temperature, neutron_ekin, m_hwhm, m_D_const,  0, m_msd );
+    xs_in_barn += kgffunc( m_temperature, neutron_ekin, m_hwhm, m_D_const,  1, m_msd );
   }
-  else if ( m_mag_scat == 1 ) xs_in_barn *= std::sqrt(1 + m_D_const / neutron_ekin);
+  else xs_in_barn = kgffunc( m_temperature, neutron_ekin, m_hwhm, m_D_const, m_mag_scat, m_msd );
+  xs_in_barn *= m_sigma;
     
   return xs_in_barn;
 }
@@ -168,11 +197,17 @@ NCP::ParamagneticScatter::ScatEvent NCP::ParamagneticScatter::sampleScatteringEv
   //result.ekin_final = neutron_ekin;//Elastic
   result.mu = randIsotropicScatterMu(rng).dbl(); //Isotropic
     
-  if ( m_mag_scat == -1 ) {
+  double rand = rng.generate(); //random number
+  double kgf_down = kgffunc( m_temperature, neutron_ekin, m_hwhm, m_D_const, -1, m_msd );
+  double kgf_el   = kgffunc( m_temperature, neutron_ekin, m_hwhm, m_D_const,  0, m_msd );
+  double kgf_up   = kgffunc( m_temperature, neutron_ekin, m_hwhm, m_D_const,  1, m_msd );
+  double kgf_tot  = kgf_down + kgf_el + kgf_up;
+    
+  if ( rand < kgf_down / kgf_tot ) {
     if ( neutron_ekin > m_D_const ) result.ekin_final = neutron_ekin - m_D_const;
     else result.ekin_final = neutron_ekin;
   }
-  else if ( m_mag_scat == 1 ) result.ekin_final = neutron_ekin + m_D_const;
+  else if ( rand < (kgf_down + kgf_up) / kgf_tot ) result.ekin_final = neutron_ekin + m_D_const;
   else result.ekin_final = neutron_ekin;
 
   return result;
