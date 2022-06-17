@@ -197,17 +197,27 @@ NCP::ParamagneticScatter::ScatEvent NCP::ParamagneticScatter::sampleScatteringEv
   //result.ekin_final = neutron_ekin;//Elastic
   result.mu = randIsotropicScatterMu(rng).dbl(); //Isotropic
     
-  double rand = rng.generate(); //random number
-  double kgf_down = kgffunc( m_temperature, neutron_ekin, m_hwhm, m_D_const, -1, m_msd );
-  double kgf_el   = kgffunc( m_temperature, neutron_ekin, m_hwhm, m_D_const,  0, m_msd );
-  double kgf_up   = kgffunc( m_temperature, neutron_ekin, m_hwhm, m_D_const,  1, m_msd );
-  double kgf_tot  = kgf_down + kgf_el + kgf_up;
+  if ( m_mag_scat == 2 ) {
+        
+    double rand = rng.generate(); //random number
+    double kgf_down = kgffunc( m_temperature, neutron_ekin, m_hwhm, m_D_const, -1, m_msd );
+    double kgf_el   = kgffunc( m_temperature, neutron_ekin, m_hwhm, m_D_const,  0, m_msd );
+    double kgf_up   = kgffunc( m_temperature, neutron_ekin, m_hwhm, m_D_const,  1, m_msd );
+    double kgf_tot  = kgf_down + kgf_el + kgf_up;
     
-  if ( rand < kgf_down / kgf_tot ) {
+    if ( rand < kgf_down / kgf_tot ) {
+      if ( neutron_ekin > m_D_const ) result.ekin_final = neutron_ekin - m_D_const;
+      else result.ekin_final = neutron_ekin;
+    }
+    else if ( rand < (kgf_down + kgf_up) / kgf_tot ) result.ekin_final = neutron_ekin + m_D_const;
+    else result.ekin_final = neutron_ekin;
+  }
+    
+  else if ( m_mag_scat == -1 ) {
     if ( neutron_ekin > m_D_const ) result.ekin_final = neutron_ekin - m_D_const;
     else result.ekin_final = neutron_ekin;
   }
-  else if ( rand < (kgf_down + kgf_up) / kgf_tot ) result.ekin_final = neutron_ekin + m_D_const;
+  else if ( m_mag_scat == 1 ) result.ekin_final = neutron_ekin + m_D_const;
   else result.ekin_final = neutron_ekin;
 
   return result;
