@@ -93,7 +93,7 @@ double mupdf( double incident_neutron_E, double hwhm, double D_const,
   double f = ffunc(incident_neutron_E, hwhm, D_const, mag_scat, msd);
   double B, pdf;
   B = A * (2 * incident_neutron_E + mag_scat * D_const - 2 * mu * std::sqrt(incident_neutron_E * (incident_neutron_E + mag_scat * D_const)));
-  pdf = 0.5 * NCrystal::exp_negarg_approx(-B) / f;
+  pdf = 2 * f / NCrystal::exp_negarg_approx(-B);
     
   return pdf;
 }
