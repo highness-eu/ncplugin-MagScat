@@ -77,27 +77,6 @@ double kgffunc( double temperature, double incident_neutron_E, double hwhm,
   return kgf;
 }
 
-double mupdf( double incident_neutron_E, double hwhm, double D_const,
-                    int mag_scat, double msd, double mu )
-{
-  //angular probability distribution functions
-  //incident_neutron_E : incident neutron energy, eV
-  //hwhm : half width at half maximum, float, Aa^-1
-  //D_const : zero-field splitting constant, eV
-  //mag_scat : magnetic scattering option, int
-  //-1, 0, 1 represent respectively down, elastic and up scattering
-  //msd: mean-squared displacement, Aa^2
-  //mu: cosine of scattering angle
-  nc_assert( mag_scat==-1 || mag_scat==0 || mag_scat==1 );
-  double A = 2 * (msd + std::log(2) / (hwhm * hwhm)) / NCrystal::const_hhm; // eV^-1
-  double f = ffunc(incident_neutron_E, hwhm, D_const, mag_scat, msd);
-  double B, pdf;
-  B = A * (2 * incident_neutron_E + mag_scat * D_const - 2 * mu * std::sqrt(incident_neutron_E * (incident_neutron_E + mag_scat * D_const)));
-  pdf = 0.5 * NCrystal::exp_negarg_approx(-B) / f;
-    
-  return pdf;
-}
-
 bool NCP::ParamagneticScatter::isApplicable( const NC::Info& info )
 {
   //Accept if input is NCMAT data with @CUSTOM_<pluginname> section:
@@ -216,9 +195,7 @@ NCP::ParamagneticScatter::ScatEvent NCP::ParamagneticScatter::sampleScatteringEv
   //to keep the code here manageable:
 
   //result.ekin_final = neutron_ekin;//Elastic
-  //result.mu = randIsotropicScatterMu(rng).dbl(); //Isotropic
-  double mu_pre = randIsotropicScatterMu(rng).dbl();
-  result.mu = mupdf(neutron_ekin, m_hwhm, m_D_const, m_mag_scat, m_msd, mu_pre);
+  result.mu = randIsotropicScatterMu(rng).dbl(); //Isotropic
     
   if ( m_mag_scat == 2 ) {
         
