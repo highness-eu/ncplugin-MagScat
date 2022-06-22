@@ -77,6 +77,40 @@ double kgffunc( double temperature, double incident_neutron_E, double hwhm,
   return kgf;
 }
 
+double mupdf( NC::RNG& rng, double incident_neutron_E, double hwhm,
+              double D_const, int mag_scat, double msd )
+{
+  //angular probability distribution functions
+  //incident_neutron_E : incident neutron energy, eV
+  //hwhm : half width at half maximum, float, Aa^-1
+  //D_const : zero-field splitting constant, eV
+  //mag_scat : magnetic scattering option, int
+  //-1, 0, 1 represent respectively down, elastic and up scattering
+  //msd: mean-squared displacement, Aa^2
+  nc_assert( mag_scat==-1 || mag_scat==0 || mag_scat==1 );
+  double A = 2 * (msd + std::log(2) / (hwhm * hwhm)) / NCrystal::const_hhm; // eV^-1
+  double B, pdf;
+  if ( mag_scat == -1 ) {
+    if (incident_neutron_E > D_const) {
+      B = 2 * A * std::sqrt(incident_neutron_E * (incident_neutron_E - D_const));
+      pdf = randExpInterval( rng, -1, 1, -B );
+      pdf *= 0.5 * B / (0.5 * (NCrystal::exp_approx(B) - NCrystal::exp_negarg_approx(-B)));
+    }
+    else pdf = 1.0;
+  }
+  else if ( mag_scat == 1 ) {
+    B = 2 * A * std::sqrt(incident_neutron_E * (incident_neutron_E + D_const));
+    pdf = randExpInterval( rng, -1, 1, -B );
+    pdf *= 0.5 * B / (0.5 * (NCrystal::exp_approx(B) - NCrystal::exp_negarg_approx(-B)));
+  }
+  else {
+    B = 2 * A * incident_neutron_E;
+    pdf = randExpInterval( rng, -1, 1, -B );
+    pdf *= 0.5 * B / (0.5 * (NCrystal::exp_approx(B) - NCrystal::exp_negarg_approx(-B)));
+  }
+  return pdf;
+}
+
 bool NCP::ParamagneticScatter::isApplicable( const NC::Info& info )
 {
   //Accept if input is NCMAT data with @CUSTOM_<pluginname> section:
@@ -195,7 +229,7 @@ NCP::ParamagneticScatter::ScatEvent NCP::ParamagneticScatter::sampleScatteringEv
   //to keep the code here manageable:
 
   //result.ekin_final = neutron_ekin;//Elastic
-  result.mu = randIsotropicScatterMu(rng).dbl(); //Isotropic
+  //result.mu = randIsotropicScatterMu(rng).dbl(); //Isotropic
     
   if ( m_mag_scat == 2 ) {
         
@@ -206,19 +240,33 @@ NCP::ParamagneticScatter::ScatEvent NCP::ParamagneticScatter::sampleScatteringEv
     double kgf_tot  = kgf_down + kgf_el + kgf_up;
     
     if ( rand < kgf_down / kgf_tot ) {
+      result.mu = mupdf( rng, neutron_ekin, m_hwhm, m_D_const, -1, m_msd );
       if ( neutron_ekin > m_D_const ) result.ekin_final = neutron_ekin - m_D_const;
       else result.ekin_final = neutron_ekin;
     }
-    else if ( rand < (kgf_down + kgf_up) / kgf_tot ) result.ekin_final = neutron_ekin + m_D_const;
-    else result.ekin_final = neutron_ekin;
+    else if ( rand < (kgf_down + kgf_up) / kgf_tot ) {
+      result.mu = mupdf( rng, neutron_ekin, m_hwhm, m_D_const, 1, m_msd );
+      result.ekin_final = neutron_ekin + m_D_const;
+    }
+    else {
+      result.mu = mupdf( rng, neutron_ekin, m_hwhm, m_D_const, 0, m_msd );
+      result.ekin_final = neutron_ekin;
+    }
   }
     
   else if ( m_mag_scat == -1 ) {
+    result.mu = mupdf( rng, neutron_ekin, m_hwhm, m_D_const, m_mag_scat, m_msd );
     if ( neutron_ekin > m_D_const ) result.ekin_final = neutron_ekin - m_D_const;
     else result.ekin_final = neutron_ekin;
   }
-  else if ( m_mag_scat == 1 ) result.ekin_final = neutron_ekin + m_D_const;
-  else result.ekin_final = neutron_ekin;
+  else if ( m_mag_scat == 1 ) {
+    result.mu = mupdf( rng, neutron_ekin, m_hwhm, m_D_const, m_mag_scat, m_msd );
+    result.ekin_final = neutron_ekin + m_D_const;
+  }
+  else {
+    result.mu = mupdf( rng, neutron_ekin, m_hwhm, m_D_const, m_mag_scat, m_msd );
+    result.ekin_final = neutron_ekin;
+  }
 
   return result;
 }
