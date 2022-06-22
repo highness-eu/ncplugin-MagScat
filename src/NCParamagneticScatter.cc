@@ -93,15 +93,17 @@ double mupdf( NC::RNG& rng, double incident_neutron_E, double hwhm,
   if ( mag_scat == -1 ) {
     if (incident_neutron_E > D_const) {
       B = 2 * A * std::sqrt(incident_neutron_E * (incident_neutron_E - D_const));
-      pdf = randExpInterval( rng, -1, 1, -B );
-      pdf *= 0.5 * B / (0.5 * (NCrystal::exp_approx(B) - NCrystal::exp_negarg_approx(-B)));
+      //pdf = randExpInterval( rng, -1, 1, -B );
+      //pdf *= 0.5 * B / (0.5 * (NCrystal::exp_approx(B) - NCrystal::exp_negarg_approx(-B)));
+      pdf = NCrystal::ncclamp(std::log1p( rng.generate() * std::expm1(2.0*B) ) / B - 1.0,-1.0,1.0);
     }
     else pdf = 1.0;
   }
   else if ( mag_scat == 1 ) {
     B = 2 * A * std::sqrt(incident_neutron_E * (incident_neutron_E + D_const));
-    pdf = randExpInterval( rng, -1, 1, -B );
-    pdf *= 0.5 * B / (0.5 * (NCrystal::exp_approx(B) - NCrystal::exp_negarg_approx(-B)));
+    //pdf = randExpInterval( rng, -1, 1, -B );
+    //pdf *= 0.5 * B / (0.5 * (NCrystal::exp_approx(B) - NCrystal::exp_negarg_approx(-B)));
+    pdf = NCrystal::ncclamp(std::log1p( rng.generate() * std::expm1(2.0*B) ) / B - 1.0,-1.0,1.0);
   }
   else {
     B = 2 * A * incident_neutron_E;
