@@ -105,8 +105,9 @@ double mupdf( NC::RNG& rng, double incident_neutron_E, double hwhm,
   }
   else {
     B = 2 * A * incident_neutron_E;
-    pdf = randExpInterval( rng, -1, 1, -B );
-    pdf *= 0.5 * B / (0.5 * (NCrystal::exp_approx(B) - NCrystal::exp_negarg_approx(-B)));
+    //pdf = randExpInterval( rng, -1, 1, -B );
+    pdf = NCrystal::ncclamp(std::log1p( rng.generate() * std::expm1(2.0*B) ) / B - 1.0,-1.0,1.0);
+    //pdf *= 0.5 * B / (0.5 * (NCrystal::exp_approx(B) - NCrystal::exp_negarg_approx(-B)));
   }
   return pdf;
 }
