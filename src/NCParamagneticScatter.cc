@@ -89,29 +89,43 @@ double mupdf( NC::RNG& rng, double incident_neutron_E, double hwhm,
   //msd: mean-squared displacement, Aa^2
   nc_assert( mag_scat==-1 || mag_scat==0 || mag_scat==1 );
   double A = 2 * (msd + std::log(2) / (hwhm * hwhm)) / NCrystal::const_hhm; // eV^-1
-  double B, pdf;
+  double B;
   if ( mag_scat == -1 ) {
     if (incident_neutron_E > D_const) {
       B = 2 * A * std::sqrt(incident_neutron_E * (incident_neutron_E - D_const));
-      //pdf = randExpInterval( rng, -1, 1, -B );
-      //pdf *= 0.5 * B / (0.5 * (NCrystal::exp_approx(B) - NCrystal::exp_negarg_approx(-B)));
-      pdf = NCrystal::ncclamp(std::log1p( rng.generate() * std::expm1(2.0*B) ) / B - 1.0,-1.0,1.0);
     }
-    else pdf = 1.0;
+    else return 1.0;
   }
   else if ( mag_scat == 1 ) {
     B = 2 * A * std::sqrt(incident_neutron_E * (incident_neutron_E + D_const));
-    //pdf = randExpInterval( rng, -1, 1, -B );
-    //pdf *= 0.5 * B / (0.5 * (NCrystal::exp_approx(B) - NCrystal::exp_negarg_approx(-B)));
-    pdf = NCrystal::ncclamp(std::log1p( rng.generate() * std::expm1(2.0*B) ) / B - 1.0,-1.0,1.0);
   }
   else {
     B = 2 * A * incident_neutron_E;
-    //pdf = randExpInterval( rng, -1, 1, -B );
-    pdf = NCrystal::ncclamp(std::log1p( rng.generate() * std::expm1(2.0*B) ) / B - 1.0,-1.0,1.0);
-    //pdf *= 0.5 * B / (0.5 * (NCrystal::exp_approx(B) - NCrystal::exp_negarg_approx(-B)));
   }
-  return pdf;
+  //treatment analog to incoherent elastic scattering
+  if ( B < 0.01 ) {
+    //Rejection method:
+
+    double maxval = NCrystal::exp_smallarg_approx(B);
+    while (true) {
+      double mu = rng.generate() * 2.0 - 1.0;
+      if ( rng.generate() * maxval < NCrystal::exp_smallarg_approx(B * mu) )
+        return mu;
+    }
+
+  } else {
+    //Transformation method:
+
+    // If f(x)=N*exp(a*x) is a normalised distribution on [-1,1], then
+    // N=a/(exp(a)-exp(-a)) and the commulative probability function is F(x)=(
+    // exp(a*(x+1)) -1 ) / ( exp(2*a) -1 ). With R a uniformly distributed
+    // random number in (0,1], solving R=F(x) yields:
+    //
+    // x(R) = log( 1 + R * ( exp(2*a)-1 ) ) / a - 1
+    //
+    // Which can preferably be evaluated with expm1/log1p functions.
+    return NCrystal::ncclamp(std::log1p( rng.generate() * std::expm1(2.0 * B) ) / B - 1.0, -1.0, 1.0);
+  }
 }
 
 bool NCP::ParamagneticScatter::isApplicable( const NC::Info& info )
