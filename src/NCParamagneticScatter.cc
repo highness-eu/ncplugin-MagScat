@@ -31,26 +31,45 @@ double ffunc( double incident_neutron_E, double hwhm, double D_const,
   //-1, 0, 1 represent respectively down, elastic and up scattering
   //msd: mean-squared displacement, Aa^2
   nc_assert( mag_scat==-1 || mag_scat==0 || mag_scat==1 );
-  double A, B, f;
+  double A, c, Bm, Bp, expBm, expBp, f;
   A = 2 * (msd + std::log(2) / (hwhm * hwhm)) / NCrystal::const_hhm; // eV^-1
   if ( mag_scat == -1 ) {
     if (incident_neutron_E > D_const) {
-      B = 2 * A * std::sqrt(incident_neutron_E * (incident_neutron_E - D_const));
-      f = NCrystal::exp_negarg_approx(-A * (2 * incident_neutron_E - D_const));
-      f *= 0.5 * (NCrystal::exp_approx(B) - NCrystal::exp_negarg_approx(-B)) / B;
+      c = std::sqrt(1 - D_const / incident_neutron_E);
     }
-    else f = 0;
+    else {
+      f = 0;
+      return f;
+    }
   }
   else if ( mag_scat == 1 ) {
-    B = 2 * A * std::sqrt(incident_neutron_E * (incident_neutron_E + D_const));
-    f = NCrystal::exp_negarg_approx(-A * (2 * incident_neutron_E + D_const));
-    f *= 0.5 * (NCrystal::exp_approx(B) - NCrystal::exp_negarg_approx(-B)) / B;
+    c = std::sqrt(1 + D_const / incident_neutron_E);
   }
   else {
-    B = 2 * A * incident_neutron_E;
-    f = NCrystal::exp_negarg_approx(-B);
-    f *= 0.5 * (NCrystal::exp_approx(B) - NCrystal::exp_negarg_approx(-B)) / B;
+    c = 1.;
   }
+  Bm = A * incident_neutron_E * (1 - c) * (1 - c); //Bm,Bp different definition in the paper
+  Bp = A * incident_neutron_E * (1 + c) * (1 + c);
+  if (Bm < 0.02) {
+    expBm = NCrystal::exp_smallarg_approx(-Bm);
+  }
+  else if (Bm > 24) {
+    expBm = 0.;
+  }
+  else {
+    expBm = NCrystal::exp_negarg_approx(-Bm);
+  }
+  if (Bp < 0.02) {
+    expBp = NCrystal::exp_smallarg_approx(-Bp);
+  }
+  else if (Bp > 24) {
+    expBp = 0.;
+  }
+  else {
+    expBp = NCrystal::exp_negarg_approx(-Bp);
+  }
+  
+  f = (expBm - expBp) / (4 * c * A * incident_neutron_E);
   return f;
 }
 
