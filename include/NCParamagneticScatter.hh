@@ -31,7 +31,8 @@ namespace NCPluginNamespace {
     //Constructor gets constant cross section value, half width at half maximum,
     //zero-field splitting constant, temperature and magnetic scattering option:
     ParamagneticScatter( double sigma, double hwhm, double D_const,
-                         double temperature, int mag_scat, double msd );
+                         double temperature, int mag_scat, 
+                         double msd, double tau );
 
     //Provide cross sections for a given neutron:
     double calcCrossSection( double neutron_ekin ) const;
@@ -49,6 +50,7 @@ namespace NCPluginNamespace {
     double m_temperature;
     int    m_mag_scat;
     double m_msd;
+    double m_tau;
   };
 
 }
