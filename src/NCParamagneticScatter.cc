@@ -46,7 +46,7 @@ double ffunc( double incident_neutron_E, double hwhm, double D_const,
 }
 
 double hfunc( double incident_neutron_E, double D_const,
-              int mag_scat, double tau )
+              int mag_scat, double hwhm_o )
 {
   //h functions, integral of Lorentzian functions 
   //which account for reorientational motions
@@ -54,10 +54,9 @@ double hfunc( double incident_neutron_E, double D_const,
   //D_const : zero-field splitting constant, eV
   //mag_scat : magnetic scattering option, int
   //-1, 0, 1 represent respectively down, elastic and up scattering
-  //tau : characteristic time of reorientational relaxation, float, s
+  //hwhm_o : phenomenological hwhm of oxygen, eV
   nc_assert( mag_scat==-1 || mag_scat==0 || mag_scat==1 );
   double h;
-  double hwhm_o = NCrystal::constant_hbar / tau; //eV
   if ( hwhm_o < 1.e-9 ) {
     h = 1;
   }
@@ -75,7 +74,7 @@ double hfunc( double incident_neutron_E, double D_const,
 }
 
 double kgfhfunc( double temperature, double incident_neutron_E, double hwhm,
-                 double D_const, int mag_scat, double msd, double tau )
+                 double D_const, int mag_scat, double msd, double hwhm_o )
 {
   //inelastic and elastic magnetic cross sections
   //temperature : temperature of material K
@@ -85,10 +84,10 @@ double kgfhfunc( double temperature, double incident_neutron_E, double hwhm,
   //mag_scat : magnetic scattering option, int
   //-1, 0, 1 represent respectively down, elastic and up scattering
   //msd: mean-squared displacement, Aa^2
-  //tau : characteristic time of reorientational relaxation, float, s
+  //hwhm_o : phenomenological hwhm of oxygen, eV
   double g = gfunc(temperature, D_const, mag_scat);
   double f = ffunc(incident_neutron_E, hwhm, D_const, mag_scat, msd);
-  double h = hfunc(incident_neutron_E, D_const, mag_scat, tau );
+  double h = hfunc(incident_neutron_E, D_const, mag_scat, hwhm_o );
   double kgfh;
   if ( mag_scat == -1 && incident_neutron_E <= D_const ) {
     kgfh = 0.;
@@ -145,7 +144,7 @@ double mupdf( NC::RNG& rng, double incident_neutron_E, double hwhm,
 }
 
 double Eppdf( NC::RNG& rng, double incident_neutron_E, double hwhm,
-              double D_const, int mag_scat, double msd, double tau )
+              double D_const, int mag_scat, double msd, double hwhm_o )
 {
   //energy probability distribution functions
   //incident_neutron_E : incident neutron energy, eV
@@ -154,21 +153,19 @@ double Eppdf( NC::RNG& rng, double incident_neutron_E, double hwhm,
   //mag_scat : magnetic scattering option, int
   //-1, 0, 1 represent respectively down, elastic and up scattering
   //msd: mean-squared displacement, Aa^2
-  //tau : characteristic time of reorientational relaxation, float, s
-  //N : number of hwhm of the broadening peak, default is 5
+  //hwhm_o : phenomenological hwhm of oxygen, eV
   nc_assert( mag_scat==-1 || mag_scat==0 || mag_scat==1 );
   double Ep;
   if ( mag_scat == -1 && incident_neutron_E <= D_const ) {
     Ep = incident_neutron_E;
   }
   else {
-    double hwhm_o = NCrystal::constant_hbar / tau;
     if ( hwhm_o < 1.e-9 ) {
       Ep = incident_neutron_E + mag_scat*D_const;
     }
     else {
       double randEp = rng.generate();
-      double h = hfunc(incident_neutron_E, D_const, mag_scat, tau );
+      double h = hfunc(incident_neutron_E, D_const, mag_scat, hwhm_o );
       double atan = NCrystal::atan_approx((incident_neutron_E + mag_scat*D_const) / hwhm_o);
       Ep = incident_neutron_E + mag_scat*D_const - hwhm_o * std::tan(atan - NCrystal::kPi * randEp * h);
     }
@@ -209,14 +206,14 @@ NCP::ParamagneticScatter NCP::ParamagneticScatter::createFromInfo( const NC::Inf
                     <<" section should be four or five numbers on a single line");
 
   //Parse and validate values:
-  double sigma, hwhm, D_const, tau;
+  double sigma, hwhm, D_const, hwhm_o;
   if ( ! NC::safe_str2dbl( data.at(0).at(0), sigma )
        || ! NC::safe_str2dbl( data.at(0).at(1), hwhm )
        || ! NC::safe_str2dbl( data.at(0).at(2), D_const )
-       || ! NC::safe_str2dbl( data.at(0).at(3), tau )
-       || ! (sigma>0.0) || ! (hwhm>0.0) || ! (D_const>0.0) || ! (tau>=0.0) )
+       || ! NC::safe_str2dbl( data.at(0).at(3), hwhm_o )
+       || ! (sigma>0.0) || ! (hwhm>0.0) || ! (D_const>0.0) || ! (hwhm_o>=0.0) )
     NCRYSTAL_THROW2( BadInput,"Invalid values specified in the @CUSTOM_"<<pluginNameUpperCase()
-                     <<" sigma, hwhm, D_const, tau (should be four strictly positive floating point values)" );
+                     <<" sigma, hwhm, D_const (should be three strictly positive floating point values), hwhm_o should be positive" );
     
   int mag_scat;
   // inelastic and elastic magnetic cross sections are both considered
@@ -235,19 +232,19 @@ NCP::ParamagneticScatter NCP::ParamagneticScatter::createFromInfo( const NC::Inf
   if ( info.hasAtomMSD() ) msd = info.getAtomInfos().front().msd().value();
 
   //Parsing done! Create and return our model:
-  return ParamagneticScatter(sigma,hwhm,D_const,temperature,mag_scat,msd,tau);
+  return ParamagneticScatter(sigma,hwhm,D_const,temperature,mag_scat,msd,hwhm_o);
 }
 
 NCP::ParamagneticScatter::ParamagneticScatter( double sigma, double hwhm, double D_const,
                                                double temperature, int mag_scat, 
-                                               double msd, double tau )
+                                               double msd, double hwhm_o )
   : m_sigma(sigma),
     m_hwhm(hwhm),
     m_D_const(D_const),
     m_temperature(temperature),
     m_mag_scat(mag_scat),
     m_msd(msd),
-    m_tau(tau)
+    m_hwhm_o(hwhm_o)
 {
   //Important note to developers who are using the infrastructure in the
   //testcode/ subdirectory: If you change the number or types of the arguments
@@ -260,18 +257,18 @@ NCP::ParamagneticScatter::ParamagneticScatter( double sigma, double hwhm, double
   nc_assert( m_hwhm > 0.0 );
   nc_assert( m_D_const > 0.0 );
   nc_assert( m_temperature > 0.0);
-  nc_assert( m_tau > 0.0 );
+  nc_assert( m_hwhm_o >= 0.0 );
 }
 
 double NCP::ParamagneticScatter::calcCrossSection( double neutron_ekin ) const
 {
   double xs_in_barn;
   if ( m_mag_scat==2 ) {
-    xs_in_barn  = kgfhfunc( m_temperature, neutron_ekin, m_hwhm, m_D_const, -1, m_msd, m_tau );
-    xs_in_barn += kgfhfunc( m_temperature, neutron_ekin, m_hwhm, m_D_const,  0, m_msd, m_tau );
-    xs_in_barn += kgfhfunc( m_temperature, neutron_ekin, m_hwhm, m_D_const,  1, m_msd, m_tau );
+    xs_in_barn  = kgfhfunc( m_temperature, neutron_ekin, m_hwhm, m_D_const, -1, m_msd, m_hwhm_o );
+    xs_in_barn += kgfhfunc( m_temperature, neutron_ekin, m_hwhm, m_D_const,  0, m_msd, m_hwhm_o );
+    xs_in_barn += kgfhfunc( m_temperature, neutron_ekin, m_hwhm, m_D_const,  1, m_msd, m_hwhm_o );
   }
-  else xs_in_barn = kgfhfunc( m_temperature, neutron_ekin, m_hwhm, m_D_const, m_mag_scat, m_msd, m_tau );
+  else xs_in_barn = kgfhfunc( m_temperature, neutron_ekin, m_hwhm, m_D_const, m_mag_scat, m_msd, m_hwhm_o );
   xs_in_barn *= m_sigma;
     
   return xs_in_barn;
@@ -303,9 +300,9 @@ NCP::ParamagneticScatter::ScatEvent NCP::ParamagneticScatter::sampleScatteringEv
   if ( m_mag_scat == 2 ) {
         
     double rand = rng.generate(); //random number
-    double kgf_down = kgfhfunc( m_temperature, neutron_ekin, m_hwhm, m_D_const, -1, m_msd, m_tau );
-    double kgf_el   = kgfhfunc( m_temperature, neutron_ekin, m_hwhm, m_D_const,  0, m_msd, m_tau );
-    double kgf_up   = kgfhfunc( m_temperature, neutron_ekin, m_hwhm, m_D_const,  1, m_msd, m_tau );
+    double kgf_down = kgfhfunc( m_temperature, neutron_ekin, m_hwhm, m_D_const, -1, m_msd, m_hwhm_o );
+    double kgf_el   = kgfhfunc( m_temperature, neutron_ekin, m_hwhm, m_D_const,  0, m_msd, m_hwhm_o );
+    double kgf_up   = kgfhfunc( m_temperature, neutron_ekin, m_hwhm, m_D_const,  1, m_msd, m_hwhm_o );
     double kgf_tot  = kgf_down + kgf_el + kgf_up;
     
     if ( rand < kgf_down / kgf_tot ) {
@@ -315,18 +312,18 @@ NCP::ParamagneticScatter::ScatEvent NCP::ParamagneticScatter::sampleScatteringEv
         result.mu = 1.;
       }
       else {
-        result.ekin_final = Eppdf( rng, neutron_ekin, m_hwhm, m_D_const, -1, m_msd, m_tau );
+        result.ekin_final = Eppdf( rng, neutron_ekin, m_hwhm, m_D_const, -1, m_msd, m_hwhm_o );
         result.mu         = mupdf( rng, neutron_ekin, m_hwhm, m_D_const, -1, m_msd );
       }
     }
     else if ( rand < (kgf_down + kgf_up) / kgf_tot ) {
       //up-scattering happens
-      result.ekin_final = Eppdf( rng, neutron_ekin, m_hwhm, m_D_const, 1, m_msd, m_tau );
+      result.ekin_final = Eppdf( rng, neutron_ekin, m_hwhm, m_D_const, 1, m_msd, m_hwhm_o );
       result.mu         = mupdf( rng, neutron_ekin, m_hwhm, m_D_const, 1, m_msd );
     }
     else {
       //elastic scattering happens
-      result.ekin_final = Eppdf( rng, neutron_ekin, m_hwhm, m_D_const, 0, m_msd, m_tau );
+      result.ekin_final = Eppdf( rng, neutron_ekin, m_hwhm, m_D_const, 0, m_msd, m_hwhm_o );
       result.mu         = mupdf( rng, neutron_ekin, m_hwhm, m_D_const, 0, m_msd );
     }
   }
@@ -337,18 +334,18 @@ NCP::ParamagneticScatter::ScatEvent NCP::ParamagneticScatter::sampleScatteringEv
       result.mu = 1.;
     }
     else {
-      result.ekin_final = Eppdf( rng, neutron_ekin, m_hwhm, m_D_const, -1, m_msd, m_tau );
+      result.ekin_final = Eppdf( rng, neutron_ekin, m_hwhm, m_D_const, -1, m_msd, m_hwhm_o );
       result.mu         = mupdf( rng, neutron_ekin, m_hwhm, m_D_const, -1, m_msd );
     }
   }
     
   else if ( m_mag_scat == 1 ) {
-    result.ekin_final = Eppdf( rng, neutron_ekin, m_hwhm, m_D_const, 1, m_msd, m_tau );
+    result.ekin_final = Eppdf( rng, neutron_ekin, m_hwhm, m_D_const, 1, m_msd, m_hwhm_o );
     result.mu         = mupdf( rng, neutron_ekin, m_hwhm, m_D_const, 1, m_msd );
   }
     
   else {
-    result.ekin_final = Eppdf( rng, neutron_ekin, m_hwhm, m_D_const, 0, m_msd, m_tau );
+    result.ekin_final = Eppdf( rng, neutron_ekin, m_hwhm, m_D_const, 0, m_msd, m_hwhm_o );
     result.mu         = mupdf( rng, neutron_ekin, m_hwhm, m_D_const, 0, m_msd );
   }
 
