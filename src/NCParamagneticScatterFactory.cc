@@ -16,7 +16,7 @@ namespace NCPluginNamespace {
 
     NC::CrossSect crossSectionIsotropic(NC::CachePtr&, NC::NeutronEnergy ekin) const override
     {
-      return NC::CrossSect{ m_pm.calcCrossSection(ekin.dbl()) };
+      return NC::CrossSect{ m_pm.calcCrossSection( ekin.dbl() ) };
     }
 
     NC::ScatterOutcomeIsotropic sampleScatterIsotropic(NC::CachePtr&, NC::RNG& rng, NC::NeutronEnergy ekin ) const override
