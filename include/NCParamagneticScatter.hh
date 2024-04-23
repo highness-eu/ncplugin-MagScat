@@ -26,13 +26,14 @@ namespace NCPluginNamespace {
     static ParamagneticScatter createFromInfo( const NC::Info& );//will raise BadInput in case of syntax errors
 
     //Paramagnetic scattering is considered. The cross section formule is
-    //presented in Zimmer's paper.
+    //presented in Zimmer's paper: Phys. Rev. C 93, 035503
 
     //Constructor gets constant cross section value, half width at half maximum,
-    //zero-field splitting constant, temperature and magnetic scattering option:
-    ParamagneticScatter( double sigma, double hwhm, double D_const,
-                         double temperature, int mag_scat, 
-                         double msd, double hwhm_o );
+    //zero-field splitting constant, temperature and magnetic scattering option
+    //mean-squared displacement, hwhm of the zero-field splitting, gaussianity:
+    ParamagneticScatter( double sigma, double hwhm, double D_const_loc,
+                         double temperature, int mag_scat, double msd,
+                         double hwhm_d, double eta );
 
     //Provide cross sections for a given neutron:
     double calcCrossSection( double neutron_ekin ) const;
@@ -46,11 +47,12 @@ namespace NCPluginNamespace {
     //Data members:
     double m_sigma;
     double m_hwhm;
-    double m_D_const;
+    double m_D_const_loc;
     double m_temperature;
     int    m_mag_scat;
     double m_msd;
-    double m_hwhm_o;
+    double m_hwhm_d;
+    double m_eta;
   };
 
 }
