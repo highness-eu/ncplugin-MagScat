@@ -1,6 +1,6 @@
 #include "NCParamagneticScatterFactory.hh"
 #include "NCParamagneticScatter.hh"
-#include "NCrystal/internal/NCRandUtils.hh" // for randDirectionGivenScatterMu
+//#include "NCrystal/internal/utils/NCRandUtils.hh" // for randDirectionGivenScatterMu
 
 namespace NCPluginNamespace {
 

@@ -1,9 +1,9 @@
 #include "NCParamagneticScatter.hh"
 
 //Include various utilities from NCrystal's internal header files:
-#include "NCrystal/internal/NCString.hh"
-#include "NCrystal/internal/NCRandUtils.hh"
-#include "NCrystal/internal/NCMath.hh"
+#include "NCrystal/internal/utils/NCString.hh"
+#include "NCrystal/internal/utils/NCRandUtils.hh"
+#include "NCrystal/internal/utils/NCMath.hh"
 
 namespace {
   //TK: I added an anonymous namespace here for these internal functions, the
