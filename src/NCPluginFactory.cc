@@ -81,10 +81,12 @@ const char * NCP::PluginFactory::name() const noexcept
 NC::Priority
 NCP::PluginFactory::query( const NC::FactImpl::ScatterRequest& cfg ) const
 {
-  //Must return value >0 if we should do something, and a value higher than
-  //100 means that we take precedence over the standard NCrystal factory:
-  // if (!cfg.get_incoh_elas())
-  //   return NC::Priority::Unable;//incoherent-elastic disabled, do nothing.
+  //Our plugin is purely additive compared to the standard physics in
+  //NCrystal. However, we must still pick a standard component in which to add
+  //the physics!! Clearly it should be added in the inelastic component.
+
+  if (cfg.get_inelas()=="0")
+    return NC::Priority::Unable;
 
   //Ok, we might be applicable. Load input data and check if is something we
   //want to handle:
@@ -104,11 +106,8 @@ NCP::PluginFactory::produce( const NC::FactImpl::ScatterRequest& cfg ) const
   auto sc_ourmodel
     = NC::makeSO<PluginScatter>( PluginScatter::PhysicsModel::createFromInfo( cfg.info() ) );
 
-  //Now we just need to combine this with all the other physics
-  //(i.e. Bragg+inelastic).  So ask the framework to set this up, except for
-  //incoherent-elastic physics of course since we are now dealing with that
-  //ourselves:
-
+  //Add ourselves to all the other usual physics (our plugin is purely
+  //additive):
   auto sc_std = globalCreateScatter( cfg );
 
   //Combine and return:
