@@ -5,80 +5,87 @@
 #include "NCrystal/internal/NCRandUtils.hh"
 #include "NCrystal/internal/NCMath.hh"
 
-//Components to calculate the magnetic scattering cross sections
-double gfunc( double temperature, double D_const, int mag_scat )
-{
-  //g functions, which accounts for the spin
-  //temperature : temperature of material K
-  //D_const : zero-field splitting constant, eV
-  //mag_scat : magnetic scattering option, int
-  //-1, 0, 1 represent respectively down, elastic and up scattering
-  //g0=g+
-  nc_assert( mag_scat==-1 || mag_scat==0 || mag_scat==1 );
-  double exp = NCrystal::exp_negarg_approx(-D_const / (NCrystal::constant_boltzmann * temperature));
-  double g = 4. / 3. / (1 + 2 * exp);
-  if ( mag_scat == 0 || mag_scat == 1 ) g *= exp;
-  return g;
-}
+namespace {
+  //TK: I added an anonymous namespace here for these internal functions, the
+  //plugin was breaking the plugin namespace and adding global unprotected
+  //symbols!!
 
-double ffunc( double incident_neutron_E, double hwhm, double D_const,
-              int mag_scat, double msd )
-{
-  //f functions, integral of magnetic form factor
-  //incident_neutron_E : incident neutron energy, eV
-  //hwhm : half width at half maximum, float, Aa^-1
-  //D_const : zero-field splitting constant, eV
-  //mag_scat : magnetic scattering option, int
-  //-1, 0, 1 represent respectively down, elastic and up scattering
-  //msd: mean-squared displacement, Aa^2
-  nc_assert( mag_scat==-1 || mag_scat==0 || mag_scat==1 );
-  double f;
-  if ( mag_scat == -1 && incident_neutron_E <= D_const ) {
-    f = 0.;
+  //Components to calculate the magnetic scattering cross sections
+  double gfunc( double temperature, double D_const, int mag_scat )
+  {
+    //g functions, which accounts for the spin
+    //temperature : temperature of material K
+    //D_const : zero-field splitting constant, eV
+    //mag_scat : magnetic scattering option, int
+    //-1, 0, 1 represent respectively down, elastic and up scattering
+    //g0=g+
+    nc_assert( mag_scat==-1 || mag_scat==0 || mag_scat==1 );
+    double exp = NCrystal::exp_negarg_approx(-D_const / (NCrystal::constant_boltzmann * temperature));
+    double g = 4. / 3. / (1 + 2 * exp);
+    if ( mag_scat == 0 || mag_scat == 1 ) g *= exp;
+    return g;
   }
-  else {
-    double A = 2 * (msd + std::log(2) / (hwhm * hwhm)) / NCrystal::const_hhm; // eV^-1
-    double cm = std::sqrt(1 + mag_scat*D_const / incident_neutron_E);
-    f  = NCrystal::exp_negarg_approx(-A * incident_neutron_E * (1 - cm) * (1 - cm));
-    f -= NCrystal::exp_negarg_approx(-A * incident_neutron_E * (1 + cm) * (1 + cm));
-    f *= 1. / (4 * cm * A * incident_neutron_E);
+
+  double ffunc( double incident_neutron_E, double hwhm, double D_const,
+                int mag_scat, double msd )
+  {
+    //f functions, integral of magnetic form factor
+    //incident_neutron_E : incident neutron energy, eV
+    //hwhm : half width at half maximum, float, Aa^-1
+    //D_const : zero-field splitting constant, eV
+    //mag_scat : magnetic scattering option, int
+    //-1, 0, 1 represent respectively down, elastic and up scattering
+    //msd: mean-squared displacement, Aa^2
+    nc_assert( mag_scat==-1 || mag_scat==0 || mag_scat==1 );
+    double f;
+    if ( mag_scat == -1 && incident_neutron_E <= D_const ) {
+      f = 0.;
+    }
+    else {
+      double A = 2 * (msd + std::log(2) / (hwhm * hwhm)) / NCrystal::const_hhm; // eV^-1
+      double cm = std::sqrt(1 + mag_scat*D_const / incident_neutron_E);
+      f  = NCrystal::exp_negarg_approx(-A * incident_neutron_E * (1 - cm) * (1 - cm));
+      f -= NCrystal::exp_negarg_approx(-A * incident_neutron_E * (1 + cm) * (1 + cm));
+      f *= 1. / (4 * cm * A * incident_neutron_E);
+    }
+    return f;
   }
-  return f;
-}
 
-double kgffunc( double temperature, double incident_neutron_E, double hwhm,
-                double D_const, int mag_scat, double msd )
-{
-  //inelastic and elastic magnetic cross sections
-  //The factor 0.5 is used to compute the cross section
-  //per atom instead of per paramagnetic center
-  //temperature : temperature of material K
-  //incident_neutron_E : incident neutron energy, eV
-  //hwhm : half width at half maximum, float, Aa^-1
-  //D_const : zero-field splitting constant, eV
-  //mag_scat : magnetic scattering option, int
-  //-1, 0, 1 represent respectively down, elastic and up scattering
-  //msd: mean-squared displacement, Aa^2
-  double g = gfunc(temperature, D_const, mag_scat);
-  double f = ffunc(incident_neutron_E, hwhm, D_const, mag_scat, msd);
-  double kgf;
-  if ( mag_scat == -1 && incident_neutron_E <= D_const ) {
-    kgf = 0.;
+  double kgffunc( double temperature, double incident_neutron_E, double hwhm,
+                  double D_const, int mag_scat, double msd )
+  {
+    //inelastic and elastic magnetic cross sections
+    //The factor 0.5 is used to compute the cross section
+    //per atom instead of per paramagnetic center
+    //temperature : temperature of material K
+    //incident_neutron_E : incident neutron energy, eV
+    //hwhm : half width at half maximum, float, Aa^-1
+    //D_const : zero-field splitting constant, eV
+    //mag_scat : magnetic scattering option, int
+    //-1, 0, 1 represent respectively down, elastic and up scattering
+    //msd: mean-squared displacement, Aa^2
+    double g = gfunc(temperature, D_const, mag_scat);
+    double f = ffunc(incident_neutron_E, hwhm, D_const, mag_scat, msd);
+    double kgf;
+    if ( mag_scat == -1 && incident_neutron_E <= D_const ) {
+      kgf = 0.;
+    }
+    else {
+      kgf = g * f;
+      kgf *= std::sqrt(1 + mag_scat*D_const / incident_neutron_E);
+      kgf *= 0.5;
+    }
+    return kgf;
   }
-  else {
-    kgf = g * f;
-    kgf *= std::sqrt(1 + mag_scat*D_const / incident_neutron_E);
-    kgf *= 0.5;
-  }
-  return kgf;
-}
 
-struct D_constContribution{
+  struct D_constContribution{
 
-	double splittingConstant;
-	double contribution;
+    double splittingConstant;
+    double contribution;
 
-};
+  };
+
+} //end of anonymous namesapce
 
 std::vector<D_constContribution> calcD_constContribution( double temperature,
                                                           double incident_neutron_E,
