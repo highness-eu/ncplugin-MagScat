@@ -74,15 +74,15 @@ double kgffunc( double temperature, double incident_neutron_E, double hwhm,
 }
 
 struct D_constContribution{
-	
+
 	double splittingConstant;
 	double contribution;
-	
+
 };
 
 std::vector<D_constContribution> calcD_constContribution( double temperature,
                                                           double incident_neutron_E,
-                                                          double hwhm, 
+                                                          double hwhm,
                                                           double D_const_loc,
                                                           double hwhm_d,
                                                           double eta,
@@ -108,21 +108,21 @@ std::vector<D_constContribution> calcD_constContribution( double temperature,
   double D_upper_bound = NCrystal::ncmin( 1, D_const_loc + 4 * hwhm_d );
   unsigned int num_D = 100; //these values can be changed later
   double Sigma = hwhm_d / std::sqrt(2 * std::log(2));
-  
+
   double D_const_weight_norm = 0.; //for normalizing the weight of D_const
   for ( auto D_const : NC::linspace( D_lower_bound, D_upper_bound, num_D ) ) {
     double G = 1. / Sigma / std::sqrt(2 * NCrystal::kPi) * NCrystal::exp_negarg_approx(-0.5 * (D_const - D_const_loc) * (D_const - D_const_loc) / Sigma / Sigma);
     double L = NCrystal::kInvPi * hwhm_d / ((D_const - D_const_loc) * (D_const - D_const_loc) + hwhm_d * hwhm_d);
     D_const_weight_norm += (1 - eta) * G + eta * L;
   }
-  
+
   for ( auto D_const : NC::linspace( D_lower_bound, D_upper_bound, num_D ) ) {
 		//D_const_weight obtained from the Gaussian probability distribution function
     double G = 1. / Sigma / std::sqrt(2 * NCrystal::kPi) * NCrystal::exp_negarg_approx(-0.5 * (D_const - D_const_loc) * (D_const - D_const_loc) / Sigma / Sigma);
     double L = NCrystal::kInvPi * hwhm_d / ((D_const - D_const_loc) * (D_const - D_const_loc) + hwhm_d * hwhm_d);
     double D_const_weight = (1 - eta) * G + eta * L;
     D_const_weight /= D_const_weight_norm; //normalization of weight
-	
+
     double xs; //dimensionless cross section, before multiplying sigma_m
     if ( mag_scat==2 ) {
       xs  = kgffunc( temperature, incident_neutron_E, hwhm, D_const, -1, msd );
@@ -130,7 +130,7 @@ std::vector<D_constContribution> calcD_constContribution( double temperature,
       xs += kgffunc( temperature, incident_neutron_E, hwhm, D_const,  1, msd );
     }
     else xs = kgffunc( temperature, incident_neutron_E, hwhm, D_const, mag_scat, msd );
-  
+
 	  result.emplace_back();
 	  result.back().splittingConstant = D_const;
 	  result.back().contribution = D_const_weight * xs;
@@ -158,17 +158,17 @@ double mupdf( NC::RNG& rng, double incident_neutron_E, double hwhm,
     //treatment analog to incoherent elastic scattering
     if ( B < 0.01 ) {
       //Rejection method:
-      
+
       double maxval = NCrystal::exp_smallarg_approx(B);
       while (true) {
         double mu = rng.generate() * 2.0 - 1.0;
         if ( rng.generate() * maxval < NCrystal::exp_smallarg_approx(B * mu) )
           return mu;
       }
-      
+
     } else {
       //Transformation method:
-      
+
       // If f(x)=N*exp(a*x) is a normalised distribution on [-1,1], then
       // N=a/(exp(a)-exp(-a)) and the commulative probability function is F(x)=(
       // exp(a*(x+1)) -1 ) / ( exp(2*a) -1 ). With R a uniformly distributed
@@ -242,7 +242,7 @@ NCP::ParamagneticScatter NCP::ParamagneticScatter::createFromInfo( const NC::Inf
        || ! (sigma>0.0) || ! (hwhm>0.0) || ! (D_const_loc>0.0) || ! (hwhm_d>=0.0) || ! (eta>=0.0) || ! (eta<=1.0) )
     NCRYSTAL_THROW2( BadInput,"Invalid values specified in the @CUSTOM_"<<pluginNameUpperCase()
                      <<" sigma, hwhm, D_const_loc (should be three strictly positive floating point values), hwhm_d should be positive, eta should be between 0. and 1." );
-    
+
   int mag_scat;
   // inelastic and elastic magnetic cross sections are both considered
   if ( data.at(0).size()==5 ) mag_scat = 2;
@@ -251,10 +251,10 @@ NCP::ParamagneticScatter NCP::ParamagneticScatter::createFromInfo( const NC::Inf
             || ! (mag_scat > -2) || ! (mag_scat < 2) )
     NCRYSTAL_THROW2( BadInput,"Invalid value specified in the @CUSTOM_"<<pluginNameUpperCase()
                      <<" mag_scat (must be -1 (for down-scattering) or 1 (for up-scattering) or 0 (for elastic scattering)" );
-  
+
   //Getting the temperature
   double temperature = info.getTemperature().get();
-    
+
   //Getting the mean-squared displacement (MSD)
   double msd = 0.;
   if ( info.hasAtomMSD() ) msd = info.getAtomInfos().front().msd().value();
@@ -294,7 +294,7 @@ NCP::ParamagneticScatter::ParamagneticScatter( double sigma, double hwhm, double
 double NCP::ParamagneticScatter::calcCrossSection( double neutron_ekin ) const
 {
   double xs;
-  
+
   if ( m_hwhm_d < 1.e-9 ) {
     if ( m_mag_scat==2 ) {
       xs  = kgffunc( m_temperature, neutron_ekin, m_hwhm, m_D_const_loc, -1, m_msd );
@@ -328,28 +328,28 @@ NCP::ParamagneticScatter::ScatEvent NCP::ParamagneticScatter::sampleScatteringEv
     auto contribs = calcD_constContribution( m_temperature, neutron_ekin, m_hwhm,
                                              m_D_const_loc, m_hwhm_d, m_eta,
                                              m_mag_scat, m_msd );
-  
+
     std::vector<double> v;
     v.reserve( contribs.size() );
-  
+
     NCrystal::StableSum sum;
     for( auto &e:contribs ) {
       sum.add( e.contribution );
       v.push_back( sum.sum() );
     }
-  
+
     auto idx = pickRandIdxByWeight( rng, v );
     D_const = contribs.at( idx ).splittingConstant;
   }
 
   if ( m_mag_scat == 2 ) {
-        
+
     double rand = rng.generate(); //random number
     double kgf_down = kgffunc( m_temperature, neutron_ekin, m_hwhm, D_const, -1, m_msd );
     double kgf_el   = kgffunc( m_temperature, neutron_ekin, m_hwhm, D_const,  0, m_msd );
     double kgf_up   = kgffunc( m_temperature, neutron_ekin, m_hwhm, D_const,  1, m_msd );
     double kgf_tot  = kgf_down + kgf_el + kgf_up;
-    
+
     if ( rand < kgf_down / kgf_tot ) {
       //down-scattering happens
       if ( neutron_ekin <= D_const ) {
@@ -372,7 +372,7 @@ NCP::ParamagneticScatter::ScatEvent NCP::ParamagneticScatter::sampleScatteringEv
       result.mu         = mupdf( rng, neutron_ekin, m_hwhm, D_const, 0, m_msd );
     }
   }
-      
+
   else if ( m_mag_scat == -1 ) {
     if ( neutron_ekin <= D_const ) {
       result.ekin_final = neutron_ekin;
@@ -383,12 +383,12 @@ NCP::ParamagneticScatter::ScatEvent NCP::ParamagneticScatter::sampleScatteringEv
       result.mu         = mupdf( rng, neutron_ekin, m_hwhm, D_const, -1, m_msd );
     }
   }
-    
+
   else if ( m_mag_scat == 1 ) {
     result.ekin_final = Eppdf( neutron_ekin, D_const, 1 );
     result.mu         = mupdf( rng, neutron_ekin, m_hwhm, D_const, 1, m_msd );
   }
-    
+
   else {
     result.ekin_final = Eppdf( neutron_ekin, D_const, 0 );
     result.mu         = mupdf( rng, neutron_ekin, m_hwhm, D_const, 0, m_msd );

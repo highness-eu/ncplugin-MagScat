@@ -1,4 +1,3 @@
-
 #include "NCParamagneticScatterFactory.hh"
 #include "NCParamagneticScatter.hh"
 #include "NCrystal/internal/NCRandUtils.hh" // for randDirectionGivenScatterMu
@@ -19,7 +18,9 @@ namespace NCPluginNamespace {
       return NC::CrossSect{ m_pm.calcCrossSection( ekin.dbl() ) };
     }
 
-    NC::ScatterOutcomeIsotropic sampleScatterIsotropic(NC::CachePtr&, NC::RNG& rng, NC::NeutronEnergy ekin ) const override
+    NC::ScatterOutcomeIsotropic sampleScatterIsotropic(NC::CachePtr&,
+                                                       NC::RNG& rng,
+                                                       NC::NeutronEnergy ekin ) const override
     {
       auto outcome = m_pm.sampleScatteringEvent( rng, ekin.dbl() );
       return { NC::NeutronEnergy{outcome.ekin_final}, NC::CosineScatAngle{outcome.mu} };
@@ -47,7 +48,8 @@ const char * NCP::ParamagneticScatterFactory::name() const noexcept
 //                                                                              //
 //////////////////////////////////////////////////////////////////////////////////
 
-NC::Priority NCP::ParamagneticScatterFactory::query( const NC::FactImpl::ScatterRequest& cfg ) const
+NC::Priority
+NCP::ParamagneticScatterFactory::query( const NC::FactImpl::ScatterRequest& cfg ) const
 {
   //Must return value >0 if we should do something, and a value higher than
   //100 means that we take precedence over the standard NCrystal factory:
@@ -65,7 +67,8 @@ NC::Priority NCP::ParamagneticScatterFactory::query( const NC::FactImpl::Scatter
   return NC::Priority{999};
 }
 
-NC::ProcImpl::ProcPtr NCP::ParamagneticScatterFactory::produce( const NC::FactImpl::ScatterRequest& cfg ) const
+NC::ProcImpl::ProcPtr
+NCP::ParamagneticScatterFactory::produce( const NC::FactImpl::ScatterRequest& cfg ) const
 {
   //Ok, we are selected as the provider! First create our own scatter model:
 
