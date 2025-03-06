@@ -85,127 +85,127 @@ namespace {
 
   };
 
-} //end of anonymous namesapce
+  std::vector<D_constContribution> calcD_constContribution( double temperature,
+                                                            double incident_neutron_E,
+                                                            double hwhm,
+                                                            double D_const_loc,
+                                                            double hwhm_d,
+                                                            double eta,
+                                                            int mag_scat, double msd )
+  {
+    //magnetic cross section for zero-field splitting
+    //which follows a pseudo-Voigt distribution
+    //temperature : temperature of material K
+    //incident_neutron_E : incident neutron energy, eV
+    //hwhm : half width at half maximum, float, Aa^-1
+    //D_const_loc : central value of D, eV
+    //hwhm_d : phenomenological hwhm of D, eV
+    //eta : constant between 0 and 1, 1 represents pure Lorentzian
+    //0 represents pure Gaussian
+    //mag_scat : magnetic scattering option, int
+    //-1, 0, 1 represent respectively down, elastic and up scattering
+    //msd: mean-squared displacement, Aa^2
+    //To do: improvement of bins of Lorentzian distribution
+    //       for accelerating the calculation
+    std::vector<D_constContribution> result;
 
-std::vector<D_constContribution> calcD_constContribution( double temperature,
-                                                          double incident_neutron_E,
-                                                          double hwhm,
-                                                          double D_const_loc,
-                                                          double hwhm_d,
-                                                          double eta,
-                                                          int mag_scat, double msd )
-{
-  //magnetic cross section for zero-field splitting
-  //which follows a pseudo-Voigt distribution
-  //temperature : temperature of material K
-  //incident_neutron_E : incident neutron energy, eV
-  //hwhm : half width at half maximum, float, Aa^-1
-  //D_const_loc : central value of D, eV
-  //hwhm_d : phenomenological hwhm of D, eV
-  //eta : constant between 0 and 1, 1 represents pure Lorentzian
-  //0 represents pure Gaussian
-  //mag_scat : magnetic scattering option, int
-  //-1, 0, 1 represent respectively down, elastic and up scattering
-  //msd: mean-squared displacement, Aa^2
-  //To do: improvement of bins of Lorentzian distribution
-  //       for accelerating the calculation
-  std::vector<D_constContribution> result;
+    double D_lower_bound = NCrystal::ncmax( 0.01e-3, D_const_loc - 4 * hwhm_d );
+    double D_upper_bound = NCrystal::ncmin( 1, D_const_loc + 4 * hwhm_d );
+    unsigned int num_D = 100; //these values can be changed later
+    double Sigma = hwhm_d / std::sqrt(2 * std::log(2));
 
-  double D_lower_bound = NCrystal::ncmax( 0.01e-3, D_const_loc - 4 * hwhm_d );
-  double D_upper_bound = NCrystal::ncmin( 1, D_const_loc + 4 * hwhm_d );
-  unsigned int num_D = 100; //these values can be changed later
-  double Sigma = hwhm_d / std::sqrt(2 * std::log(2));
-
-  double D_const_weight_norm = 0.; //for normalizing the weight of D_const
-  for ( auto D_const : NC::linspace( D_lower_bound, D_upper_bound, num_D ) ) {
-    double G = 1. / Sigma / std::sqrt(2 * NCrystal::kPi) * NCrystal::exp_negarg_approx(-0.5 * (D_const - D_const_loc) * (D_const - D_const_loc) / Sigma / Sigma);
-    double L = NCrystal::kInvPi * hwhm_d / ((D_const - D_const_loc) * (D_const - D_const_loc) + hwhm_d * hwhm_d);
-    D_const_weight_norm += (1 - eta) * G + eta * L;
-  }
-
-  for ( auto D_const : NC::linspace( D_lower_bound, D_upper_bound, num_D ) ) {
-		//D_const_weight obtained from the Gaussian probability distribution function
-    double G = 1. / Sigma / std::sqrt(2 * NCrystal::kPi) * NCrystal::exp_negarg_approx(-0.5 * (D_const - D_const_loc) * (D_const - D_const_loc) / Sigma / Sigma);
-    double L = NCrystal::kInvPi * hwhm_d / ((D_const - D_const_loc) * (D_const - D_const_loc) + hwhm_d * hwhm_d);
-    double D_const_weight = (1 - eta) * G + eta * L;
-    D_const_weight /= D_const_weight_norm; //normalization of weight
-
-    double xs; //dimensionless cross section, before multiplying sigma_m
-    if ( mag_scat==2 ) {
-      xs  = kgffunc( temperature, incident_neutron_E, hwhm, D_const, -1, msd );
-      xs += kgffunc( temperature, incident_neutron_E, hwhm, D_const,  0, msd );
-      xs += kgffunc( temperature, incident_neutron_E, hwhm, D_const,  1, msd );
+    double D_const_weight_norm = 0.; //for normalizing the weight of D_const
+    for ( auto D_const : NC::linspace( D_lower_bound, D_upper_bound, num_D ) ) {
+      double G = 1. / Sigma / std::sqrt(2 * NCrystal::kPi) * NCrystal::exp_negarg_approx(-0.5 * (D_const - D_const_loc) * (D_const - D_const_loc) / Sigma / Sigma);
+      double L = NCrystal::kInvPi * hwhm_d / ((D_const - D_const_loc) * (D_const - D_const_loc) + hwhm_d * hwhm_d);
+      D_const_weight_norm += (1 - eta) * G + eta * L;
     }
-    else xs = kgffunc( temperature, incident_neutron_E, hwhm, D_const, mag_scat, msd );
 
-	  result.emplace_back();
-	  result.back().splittingConstant = D_const;
-	  result.back().contribution = D_const_weight * xs;
-  }
-	return result;
-}
+    for ( auto D_const : NC::linspace( D_lower_bound, D_upper_bound, num_D ) ) {
+      //D_const_weight obtained from the Gaussian probability distribution function
+      double G = 1. / Sigma / std::sqrt(2 * NCrystal::kPi) * NCrystal::exp_negarg_approx(-0.5 * (D_const - D_const_loc) * (D_const - D_const_loc) / Sigma / Sigma);
+      double L = NCrystal::kInvPi * hwhm_d / ((D_const - D_const_loc) * (D_const - D_const_loc) + hwhm_d * hwhm_d);
+      double D_const_weight = (1 - eta) * G + eta * L;
+      D_const_weight /= D_const_weight_norm; //normalization of weight
 
-double mupdf( NC::RNG& rng, double incident_neutron_E, double hwhm,
-              double D_const, int mag_scat, double msd )
-{
-  //angular probability distribution functions
-  //incident_neutron_E : incident neutron energy, eV
-  //hwhm : half width at half maximum, float, Aa^-1
-  //D_const : zero-field splitting constant, eV
-  //mag_scat : magnetic scattering option, int
-  //-1, 0, 1 represent respectively down, elastic and up scattering
-  //msd: mean-squared displacement, Aa^2
-  nc_assert( mag_scat==-1 || mag_scat==0 || mag_scat==1 );
-  double A = 2 * (msd + std::log(2) / (hwhm * hwhm)) / NCrystal::const_hhm; // eV^-1
-  if ( mag_scat == -1 && incident_neutron_E <= D_const ) {
-    return 1.0;
-  }
-  else {
-    double B = 2 * A * std::sqrt(incident_neutron_E * (incident_neutron_E + mag_scat*D_const));
-    //treatment analog to incoherent elastic scattering
-    if ( B < 0.01 ) {
-      //Rejection method:
-
-      double maxval = NCrystal::exp_smallarg_approx(B);
-      while (true) {
-        double mu = rng.generate() * 2.0 - 1.0;
-        if ( rng.generate() * maxval < NCrystal::exp_smallarg_approx(B * mu) )
-          return mu;
+      double xs; //dimensionless cross section, before multiplying sigma_m
+      if ( mag_scat==2 ) {
+        xs  = kgffunc( temperature, incident_neutron_E, hwhm, D_const, -1, msd );
+        xs += kgffunc( temperature, incident_neutron_E, hwhm, D_const,  0, msd );
+        xs += kgffunc( temperature, incident_neutron_E, hwhm, D_const,  1, msd );
       }
+      else xs = kgffunc( temperature, incident_neutron_E, hwhm, D_const, mag_scat, msd );
 
-    } else {
-      //Transformation method:
+      result.emplace_back();
+      result.back().splittingConstant = D_const;
+      result.back().contribution = D_const_weight * xs;
+    }
+    return result;
+  }
 
-      // If f(x)=N*exp(a*x) is a normalised distribution on [-1,1], then
-      // N=a/(exp(a)-exp(-a)) and the commulative probability function is F(x)=(
-      // exp(a*(x+1)) -1 ) / ( exp(2*a) -1 ). With R a uniformly distributed
-      // random number in (0,1], solving R=F(x) yields:
-      //
-      // x(R) = log( 1 + R * ( exp(2*a)-1 ) ) / a - 1
-      //
-      // Which can preferably be evaluated with expm1/log1p functions.
-      return NCrystal::ncclamp(std::log1p( rng.generate() * std::expm1(2.0 * B) ) / B - 1.0, -1.0, 1.0);
+  double mupdf( NC::RNG& rng, double incident_neutron_E, double hwhm,
+                double D_const, int mag_scat, double msd )
+  {
+    //angular probability distribution functions
+    //incident_neutron_E : incident neutron energy, eV
+    //hwhm : half width at half maximum, float, Aa^-1
+    //D_const : zero-field splitting constant, eV
+    //mag_scat : magnetic scattering option, int
+    //-1, 0, 1 represent respectively down, elastic and up scattering
+    //msd: mean-squared displacement, Aa^2
+    nc_assert( mag_scat==-1 || mag_scat==0 || mag_scat==1 );
+    double A = 2 * (msd + std::log(2) / (hwhm * hwhm)) / NCrystal::const_hhm; // eV^-1
+    if ( mag_scat == -1 && incident_neutron_E <= D_const ) {
+      return 1.0;
+    }
+    else {
+      double B = 2 * A * std::sqrt(incident_neutron_E * (incident_neutron_E + mag_scat*D_const));
+      //treatment analog to incoherent elastic scattering
+      if ( B < 0.01 ) {
+        //Rejection method:
+
+        double maxval = NCrystal::exp_smallarg_approx(B);
+        while (true) {
+          double mu = rng.generate() * 2.0 - 1.0;
+          if ( rng.generate() * maxval < NCrystal::exp_smallarg_approx(B * mu) )
+            return mu;
+        }
+
+      } else {
+        //Transformation method:
+
+        // If f(x)=N*exp(a*x) is a normalised distribution on [-1,1], then
+        // N=a/(exp(a)-exp(-a)) and the commulative probability function is F(x)=(
+        // exp(a*(x+1)) -1 ) / ( exp(2*a) -1 ). With R a uniformly distributed
+        // random number in (0,1], solving R=F(x) yields:
+        //
+        // x(R) = log( 1 + R * ( exp(2*a)-1 ) ) / a - 1
+        //
+        // Which can preferably be evaluated with expm1/log1p functions.
+        return NCrystal::ncclamp(std::log1p( rng.generate() * std::expm1(2.0 * B) ) / B - 1.0, -1.0, 1.0);
+      }
     }
   }
-}
 
-double Eppdf( double incident_neutron_E, double D_const, int mag_scat )
-{
-  //energy probability distribution functions
-  //incident_neutron_E : incident neutron energy, eV
-  //D_const : zero-field splitting constant, eV
-  //mag_scat : magnetic scattering option, int
-  //-1, 0, 1 represent respectively down, elastic and up scattering
-  nc_assert( mag_scat==-1 || mag_scat==0 || mag_scat==1 );
-  double Ep;
-  if ( mag_scat == -1 && incident_neutron_E <= D_const ) {
-    Ep = incident_neutron_E;
+  double Eppdf( double incident_neutron_E, double D_const, int mag_scat )
+  {
+    //energy probability distribution functions
+    //incident_neutron_E : incident neutron energy, eV
+    //D_const : zero-field splitting constant, eV
+    //mag_scat : magnetic scattering option, int
+    //-1, 0, 1 represent respectively down, elastic and up scattering
+    nc_assert( mag_scat==-1 || mag_scat==0 || mag_scat==1 );
+    double Ep;
+    if ( mag_scat == -1 && incident_neutron_E <= D_const ) {
+      Ep = incident_neutron_E;
+    }
+    else {
+      Ep = incident_neutron_E + mag_scat*D_const;
+    }
+    return Ep;
   }
-  else {
-    Ep = incident_neutron_E + mag_scat*D_const;
-  }
-  return Ep;
-}
+
+} //end of anonymous namesapce
 
 bool NCP::ParamagneticScatter::isApplicable( const NC::Info& info )
 {
