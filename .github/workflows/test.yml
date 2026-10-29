@@ -4,16 +4,20 @@ on:
   push:
   pull_request:
   schedule:
-    - cron: '8 15 * * 0'  # 8:15 every Monday
+    - cron: '8 15 * * 0'  # 15:08 every Sunday
 
 jobs:
   build_and_test_plugin:
     strategy:
+      fail-fast: false
       matrix:
         os: [ ubuntu-latest, macos-latest, windows-latest ]
 
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
 
     steps:
     - name: Checkout
@@ -21,14 +25,30 @@ jobs:
       with:
         path: src
 
+    - name: Setup python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
     - name: Install dependencies
       run: pip install 'ncrystal>=4.1.4'
 
     - name: Install plugin
       run: pip install ./src
 
+    - name: Show versions
+      run: nctool --version
+
     - name: Verify plugin loading
       run: ncrystal-pluginmanager --test MagScat
 
     - name: Use explicit plugin file
       run: nctool -d 'plugins::MagScat/O2_pdos_deuterated_O2-hydrate_mag.ncmat'
+
+    - name: Load all plugin data files
+      run: |
+        for f in src/data/*.ncmat; do
+          echo "Loading $(basename "$f")"
+          python -c 'import sys,NCrystal as NC; NC.load(sys.argv[1]).scatter.xsect(wl=1.8)' \
+            "plugins::MagScat/$(basename "$f")"
+        done
