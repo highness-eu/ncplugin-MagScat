@@ -32,25 +32,25 @@ NCMAT v5
 # Neutron-Diffraction determination of the crystal structure and magnetic form
 # factor of gamma-oxygen
 #
-# The site occupancy of oxygen atom 0.25 is not taken into account in this ncmat file. 
-# The occupancy can be considered by adding:
-# @ATOMDB
-#   #Note: Emulating site_occupancy=0.25 for O by hijacking Og299 to play the role as "sterile O".
-#   Og299 1.007975973752u 0fm 0b 0b
-#   O is 0.25 O 0.75 Og299
+# NOTE: This file is not used as a crystal. The gamma-O2 structure (cubic,
+# a=6.78Aa, space group 223, 16 O atoms per cell with 64 positions of 0.25
+# occupancy) can not be represented with plain @ATOMPOSITIONS, and a previous
+# version of this file only listed the two Wyckoff representatives (resulting in
+# a density ~8 times too low and a fictitious Bragg pattern). Since Bragg
+# scattering on the enclathrated O2 is not of interest, the structure was
+# therefore replaced by the corresponding density (16*15.999u/(6.78Aa)^3 =
+# 1.364 g/cm3) of a non-crystalline solid. See
+# https://github.com/highness-eu/ncmat-clathrates/issues/4 for details.
 #
 # Remarks: the PDOS was updated in December 2023 by Omar and Marco.
 #
 #NCRYSTALMATCFG[temp=1K]
 @CUSTOM_MAGSCAT
   3.66  1.5  0.4e-3  0.  1.
-@CELL
-  cubic 6.78
-@SPACEGROUP
-  223
-@ATOMPOSITIONS
-  O   0.04360   0.04360   0.04360
-  O   0.03400   0.25160   0.41510
+@DENSITY
+  1.364 g_per_cm3
+@STATEOFMATTER
+  solid
 @DYNINFO
   element O
   fraction 1
