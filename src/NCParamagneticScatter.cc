@@ -345,7 +345,11 @@ NCP::ParamagneticScatter::ScatEvent NCP::ParamagneticScatter::sampleScatteringEv
       v.push_back( sum.sum() );
     }
 
-    auto idx = pickRandIdxByWeight( rng, v );
+#if NCRYSTAL_VERSION >= 4004007
+    auto idx = NC::RandIdxByWeightPicker::oneShotPick( rng, v );
+#else
+    auto idx = NC::pickRandIdxByWeight( rng, v );
+#endif
     D_const = contribs.at( idx ).splittingConstant;
   }
 
